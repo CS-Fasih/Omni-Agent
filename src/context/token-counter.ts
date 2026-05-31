@@ -1,18 +1,8 @@
-import { encodingForModel, type Tiktoken } from 'js-tiktoken';
 import type { Message, ContentPart } from './types.js';
 
-let encoder: Tiktoken | null = null;
-
-function getEncoder(): Tiktoken {
-  if (!encoder) {
-    encoder = encodingForModel('gpt-4');
-  }
-  return encoder;
-}
-
+// Approximation: 1 token ≈ 4 characters (cl100k_base average). Accurate enough for context window management.
 export function countTokens(text: string): number {
-  const enc = getEncoder();
-  return enc.encode(text).length;
+  return Math.ceil(text.length / 4);
 }
 
 function extractMessageText(msg: Message): string {

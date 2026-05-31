@@ -163,6 +163,9 @@ export class QuotaTracker {
 
   private loadDaily(): void {
     try {
+      if (!existsSync(CONFIG_DIR)) {
+        mkdirSync(CONFIG_DIR, { recursive: true });
+      }
       const raw = readFileSync(QUOTA_FILE, 'utf-8');
       const data: QuotaStateData = JSON.parse(raw);
       const todayUTC = new Date().toISOString().slice(0, 10);
@@ -195,7 +198,6 @@ export class QuotaTracker {
     }
     try {
       if (!existsSync(CONFIG_DIR)) {
-        const { mkdirSync } = require('node:fs');
         mkdirSync(CONFIG_DIR, { recursive: true });
       }
       writeFileSync(QUOTA_FILE, JSON.stringify(data, null, 2), 'utf-8');
