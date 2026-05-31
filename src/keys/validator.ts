@@ -1,52 +1,28 @@
-import type { ProviderKeyInfo, KeyValidationResult } from './types.js';
+import type { KeyValidationResult } from './types.js';
 import { getProvider } from '../providers/registry.js';
 
 export function validateKey(providerId: string, key: string): KeyValidationResult {
   const provider = getProvider(providerId);
   if (!provider) {
+    return { valid: false, provider: providerId, message: `Unknown provider: ${providerId}. Run /keys add to see available providers.` };
+  }
+  if (!provider.requiresKey) {
+    return { valid: true, provider: providerId, message: 'No key required for this provider.' };
+  }
+  if (!key || key.trim().length === 0) {
+    return { valid: false, provider: providerId, message: 'Key cannot be empty.' };
+  }
+  return { valid: true, provider: providerId, message: `Key accepted for ${provider.displayName}.` };
+}
+
+export async function testKey(providerId: string, key: string): Promise<KeyValidationResult> {
+  const provider = getProvider(providerId);
+  if (!provider) {
     return { valid: false, provider: providerId, message: `Unknown provider: ${providerId}` };
   }
 
-  if (provider.requiresKey && (!key || key.trim().length === 0)) {
-    return { valid: false, provider: providerId, message: `Key is required for ${provider.displayName}` };
-  }
-
-  for (const [envProvider, pattern] of Object.entries(PROVIDER_KEY_PATTERNS)) {
-    if (envProvider === providerId && pattern) {
-      if (!pattern.test(key.trim())) {
-        return {
-          valid: false,
-          provider: providerId,
-          message: `Key format doesn't match expected pattern for ${provider.displayName}. Expected format like: ${pattern}`,
-        };
-      }
-    }
-  }
-
-  return { valid: true, provider: providerId, message: 'Key format looks valid' };
-}
-
-const PROVIDER_KEY_PATTERNS: Record<string, RegExp> = {
-  groq: /^gsk_/,
-  gemini: /^AIza/,
-  cerebras: /^csk-/,
-  sambanova: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,
-  openrouter: /^sk-or-/,
-  github_models: /^ghp_/,
-  nvidia_nim: /^nvapi-/,
-  mistral: /^[a-zA-Z0-9]{16,}$/,
-  cohere: /^[a-zA-Z0-9]{32,}$/,
-  fireworks: /^fw_/,
-};
-
-export function testKey(providerId: string, key: string): Promise<KeyValidationResult> {
-  const provider = getProvider(providerId);
-  if (!provider) {
-    return Promise.resolve({ valid: false, provider: providerId, message: `Unknown provider: ${providerId}` });
-  }
-
   const formatResult = validateKey(providerId, key);
-  if (!formatResult.valid) return Promise.resolve(formatResult);
+  if (!formatResult.valid) return formatResult;
 
   const apiKey = provider.apiKeyFormat.replace('{key}', key.trim());
   const headers: Record<string, string> = {
@@ -59,7 +35,7 @@ export function testKey(providerId: string, key: string): Promise<KeyValidationR
 
   const defaultModel = provider.models.find(m => m.isFree) ?? provider.models[0];
   if (!defaultModel) {
-    return Promise.resolve({ valid: false, provider: providerId, message: 'No free model available for testing' });
+    return { valid: false, provider: providerId, message: 'No free model available for testing' };
   }
 
   return fetch(`${provider.baseURL}/chat/completions`, {

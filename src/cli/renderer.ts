@@ -71,13 +71,8 @@ export function showWelcome(): void {
   );
   console.log(
     chalk.gray('  Type ') +
-      chalk.white('/keys add <provider> <key>') +
-      chalk.gray(' to get started.')
-  );
-  console.log(
-    chalk.gray('  Type ') +
       chalk.white('/help') +
-      chalk.gray(' for available commands.')
+      chalk.gray(' for commands.')
   );
   console.log('');
 }

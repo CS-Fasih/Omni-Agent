@@ -7,7 +7,7 @@ import { handleHelpCommand } from './help.js';
 
 export type CommandHandler = (args: string[], context: AgentContext | null) => Promise<boolean> | boolean;
 
-export function dispatchCommand(input: string, context: AgentContext | null): boolean {
+export async function dispatchCommand(input: string, context: AgentContext | null): Promise<boolean> {
   if (!input.startsWith('/')) return false;
 
   const parts = input.slice(1).split(/\s+/);
@@ -16,7 +16,7 @@ export function dispatchCommand(input: string, context: AgentContext | null): bo
 
   switch (command) {
     case 'keys':
-      handleKeysCommand(args);
+      await handleKeysCommand(args);
       return true;
 
     case 'status':

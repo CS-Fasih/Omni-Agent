@@ -1,25 +1,48 @@
 import * as readline from 'node:readline';
 import chalk from 'chalk';
 import type { AgentContext } from '../context/types.js';
-import { createContext, addMessage } from '../context/manager.js';
+import { createContext } from '../context/manager.js';
 import { runAgent } from '../agent/loop.js';
-import { ProviderClient } from '../providers/client.js';
 import { quotaTracker } from '../quota/tracker.js';
 import { getConfiguredProviders } from '../keys/store.js';
 import { PROVIDERS } from '../providers/registry.js';
 import { dispatchCommand } from './commands/index.js';
+import { interactiveAddKey } from './commands/keys.js';
 import { renderer, showWelcome, showStatusBar } from './renderer.js';
-import { countMessagesTokens } from '../context/token-counter.js';
 import { getForcedProvider, getForcedModel } from './commands/model.js';
+
+async function runStartupWizard(): Promise<boolean> {
+  console.log(chalk.yellow('No API keys found.') + chalk.gray(' Add one now?'));
+  console.log(chalk.gray('  ') + chalk.white('Press Enter') + chalk.gray(' to skip, or type ') + chalk.white('y') + chalk.gray(' to add:'));
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+  });
+
+  try {
+    const answer = await new Promise<string>(resolve => {
+      rl.question(chalk.gray('  > '), resolve);
+    });
+    if (!answer || (answer.toLowerCase() !== 'y' && answer.toLowerCase() !== 'yes')) {
+      console.log(chalk.gray('  Skipped. Type /keys add anytime to configure.\n'));
+      return false;
+    }
+  } finally {
+    rl.close();
+  }
+
+  await interactiveAddKey();
+  return getConfiguredProviders().length > 0;
+}
 
 export async function startRepl(): Promise<void> {
   showWelcome();
 
   const configured = getConfiguredProviders();
   if (configured.length === 0) {
-    console.log(chalk.yellow('No API keys configured.'));
-    console.log(chalk.white('Add keys: /keys add groq gsk_xxxxxxxx'));
-    console.log();
+    await runStartupWizard();
   } else {
     console.log(
       chalk.gray(
@@ -40,16 +63,6 @@ export async function startRepl(): Promise<void> {
     terminal: true,
     historySize: 100,
   });
-
-  // History is handled by readline internally
-
-  const askQuestion = (): Promise<string> => {
-    return new Promise((resolve) => {
-      rl.question(chalk.cyan('> '), (answer) => {
-        resolve(answer.trim());
-      });
-    });
-  };
 
   rl.on('SIGINT', () => {
     console.log(chalk.gray('\nGoodbye!'));
@@ -74,13 +87,10 @@ export async function startRepl(): Promise<void> {
     }
 
     if (trimmed.startsWith('/')) {
-      dispatchCommand(trimmed, context);
+      await dispatchCommand(trimmed, context);
       rl.prompt();
       return;
     }
-
-    const forcedProvider = getForcedProvider();
-    const forcedModel = getForcedModel();
 
     try {
       context = context ?? createContext(trimmed);
